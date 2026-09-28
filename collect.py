@@ -1,7 +1,9 @@
 """Fetch today's prices for the products in products.json and print a table."""
 
 import json
+import os
 import time
+import urllib.error
 import urllib.request
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -134,7 +136,38 @@ def fetch_galaxias(codes, today):
     return rows
 
 
+def load_env():
+    """Read KEY=VALUE lines from .env into the environment (on GitHub Actions there is no .env)."""
+    if not os.path.exists(".env"):
+        return
+    with open(".env", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip())
+
+
+def save_to_supabase(rows):
+    """Upsert: a row with the same date + supermarket + product is replaced, never duplicated."""
+    url = os.environ["SUPABASE_URL"] + "/rest/v1/prices?on_conflict=date,supermarket,product"
+    headers = {
+        "apikey": os.environ["SUPABASE_SECRET_KEY"],
+        "content-type": "application/json",
+        "prefer": "resolution=merge-duplicates",
+    }
+    body = json.dumps(rows, default=str).encode()  # default=str turns dates into "2026-09-28"
+    request = urllib.request.Request(url, data=body, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30):
+            pass
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"Supabase said {e.code}: {e.read().decode()}")
+    print(f"\nSaved {len(rows)} rows to Supabase.")
+
+
 def main():
+    load_env()
     today = datetime.now(ZoneInfo("Europe/Athens")).date()
     with open("products.json", encoding="utf-8") as f:
         config = json.load(f)
@@ -157,6 +190,8 @@ def main():
         if r["offer_start"] or r["offer_end"]:
             offer += f" ({r['offer_start']} to {r['offer_end']})"
         print(f"{r['supermarket']:<12} {r['product']:<22} {r['price_paid']:>6.2f} {r['regular_price']:>8.2f}  {offer}")
+
+    save_to_supabase(rows)
 
 
 if __name__ == "__main__":
