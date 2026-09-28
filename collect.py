@@ -20,6 +20,21 @@ query productByCode($code: String) {
 }
 """
 
+GALAXIAS_URL = "https://magento2.galaxias.shop/graphql"
+GALAXIAS_QUERY = """
+query productsBySku($skus: [String]) {
+  products(filter: { sku: { in: $skus } }, pageSize: 100) {
+    items {
+      sku name url_key stock_status
+      price_range { minimum_price { regular_price { value } } }
+      catalog_rules { name promoType action_name actions { amount } from to tags }
+    }
+  }
+}
+"""
+# Γαλαξίας blocks Python's default identity. We use a plain name, not a fake browser.
+GALAXIAS_HEADERS = {"user-agent": "price-monitor/0.1"}
+
 
 def post_json(url, payload, headers):
     time.sleep(1)  # be polite: about 1 request per second
@@ -76,6 +91,49 @@ def fetch_ab(product, code, today):
     }
 
 
+def fetch_galaxias(codes, today):
+    """codes is {product: barcode}. One request fetches all of them."""
+    payload = {"query": GALAXIAS_QUERY, "variables": {"skus": list(codes.values())}}
+    data = post_json(GALAXIAS_URL, payload, GALAXIAS_HEADERS)
+    items = {p["sku"]: p for p in data["data"]["products"]["items"]}
+
+    rows = []
+    for product, sku in codes.items():
+        raw = items.get(sku)
+        if not raw:
+            print(f"WARNING: Γαλαξίας barcode {sku} ({product}) not found")
+            continue
+
+        # The listed price is before the offer; work out the offer price ourselves.
+        regular = raw["price_range"]["minimum_price"]["regular_price"]["value"]
+        rules = raw["catalog_rules"] or []
+        paid = regular
+        for r in rules:
+            amount = float(r["actions"]["amount"])
+            if r["promoType"] == "bravo_bonus":  # loyalty points, the shelf price stays the same
+                continue
+            if r["action_name"] == "percent":
+                paid -= regular * amount / 100
+            elif r["action_name"] == "fixed":
+                paid -= amount
+
+        rows.append({
+            "date": today,
+            "supermarket": "galaxias",
+            "product": product,
+            "price_paid": round(paid, 2),
+            "regular_price": regular,
+            "offer_text": " | ".join(
+                r["name"] + (" (bravo bonus)" if r["promoType"] == "bravo_bonus" else "") for r in rules
+            ) or None,
+            "offer_start": date.fromisoformat(rules[0]["from"][0]) if rules else None,
+            "offer_end": date.fromisoformat(rules[0]["to"][0]) if rules else None,
+            "source_url": "https://galaxias.shop/product/" + raw["url_key"],
+            "raw": raw,
+        })
+    return rows
+
+
 def main():
     today = datetime.now(ZoneInfo("Europe/Athens")).date()
     with open("products.json", encoding="utf-8") as f:
@@ -87,6 +145,10 @@ def main():
             row = fetch_ab(product, codes["ab"], today)
             if row:
                 rows.append(row)
+
+    galaxias_codes = {product: codes["galaxias"] for product, codes in config.items() if "galaxias" in codes}
+    if galaxias_codes:
+        rows += fetch_galaxias(galaxias_codes, today)
 
     print(f"\nPrices for {today}\n")
     print(f"{'SUPERMARKET':<12} {'PRODUCT':<22} {'PAID':>6} {'REGULAR':>8}  OFFER")
