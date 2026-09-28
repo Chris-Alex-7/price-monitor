@@ -1,0 +1,101 @@
+"""Fetch today's prices for the products in products.json and print a table."""
+
+import json
+import time
+import urllib.request
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+AB_URL = "https://www.ab.gr/api/v1/"
+AB_QUERY = """
+query productByCode($code: String) {
+  categoryProductSearchV2(lang: "gr", category: "", pageSize: 50, pageNumber: 0,
+      searchQuery: $code, sort: "relevance", filterFlag: true, plainChildCategories: true) {
+    products {
+      code name manufacturerName url stock { inStock }
+      price { value discountedPriceFormatted supplementaryPriceLabel1 wasPrice }
+      potentialPromotions { description promotionType fromDate endDate simplePromotionMessage }
+    }
+  }
+}
+"""
+
+
+def post_json(url, payload, headers):
+    time.sleep(1)  # be polite: about 1 request per second
+    body = json.dumps(payload).encode()
+    headers = {"content-type": "application/json", **headers}
+    request = urllib.request.Request(url, data=body, headers=headers)
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
+def ab_date(text, default_year):
+    """'24/09', '24/09/26' or '07/10/2026 20:59:00' -> date."""
+    parts = text.split()[0].split("/")
+    year = int(parts[2]) if len(parts) > 2 else default_year
+    if year < 100:
+        year += 2000
+    return date(year, int(parts[1]), int(parts[0]))
+
+
+def fetch_ab(product, code, today):
+    payload = {"operationName": "productByCode", "query": AB_QUERY, "variables": {"code": code}}
+    headers = {"apollo-require-preflight": "true", "x-apollo-operation-name": "productByCode"}
+    data = post_json(AB_URL, payload, headers)
+    matches = [p for p in data["data"]["categoryProductSearchV2"]["products"] if p["code"] == code]
+    if not matches:
+        print(f"WARNING: ΑΒ code {code} ({product}) not found")
+        return None
+    raw = matches[0]
+
+    # A "Μόνο" label with no dates is a permanent shelf label, not an offer.
+    promos = [
+        p for p in raw["potentialPromotions"]
+        if not (p["description"] == "Μόνο" and not p["fromDate"] and not p["endDate"])
+    ]
+    offer_start = offer_end = None
+    if promos and promos[0]["endDate"]:
+        offer_end = ab_date(promos[0]["endDate"], today.year)
+        if promos[0]["fromDate"]:
+            offer_start = ab_date(promos[0]["fromDate"], offer_end.year)
+            if offer_start > offer_end:  # start date had no year and is in the previous year
+                offer_start = offer_start.replace(year=offer_start.year - 1)
+
+    return {
+        "date": today,
+        "supermarket": "ab",
+        "product": product,
+        "price_paid": float(raw["price"]["discountedPriceFormatted"].replace("€", "").replace(",", ".")),
+        "regular_price": raw["price"]["value"],
+        "offer_text": " | ".join(p["simplePromotionMessage"] or p["description"] for p in promos) or None,
+        "offer_start": offer_start,
+        "offer_end": offer_end,
+        "source_url": "https://www.ab.gr" + raw["url"],
+        "raw": raw,
+    }
+
+
+def main():
+    today = datetime.now(ZoneInfo("Europe/Athens")).date()
+    with open("products.json", encoding="utf-8") as f:
+        config = json.load(f)
+
+    rows = []
+    for product, codes in config.items():
+        if "ab" in codes:
+            row = fetch_ab(product, codes["ab"], today)
+            if row:
+                rows.append(row)
+
+    print(f"\nPrices for {today}\n")
+    print(f"{'SUPERMARKET':<12} {'PRODUCT':<22} {'PAID':>6} {'REGULAR':>8}  OFFER")
+    for r in rows:
+        offer = r["offer_text"] or "-"
+        if r["offer_start"] or r["offer_end"]:
+            offer += f" ({r['offer_start']} to {r['offer_end']})"
+        print(f"{r['supermarket']:<12} {r['product']:<22} {r['price_paid']:>6.2f} {r['regular_price']:>8.2f}  {offer}")
+
+
+if __name__ == "__main__":
+    main()
