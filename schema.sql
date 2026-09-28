@@ -14,8 +14,11 @@ create table prices (
   primary key (date, supermarket, product)
 );
 
--- No public access. The collector uses the secret key, which bypasses this.
+-- Row level security: only what the policies below allow. The secret key bypasses this.
 alter table prices enable row level security;
 
--- New tables are not exposed to the Data API automatically, so allow only the secret key (service_role).
+-- New tables are not exposed to the Data API automatically, so grant access explicitly.
+-- The collector (secret key) writes; the web page (publishable key, role "anon") can only read.
 grant select, insert, update on prices to service_role;
+grant select on prices to anon;
+create policy "Anyone can read prices" on prices for select to anon using (true);
