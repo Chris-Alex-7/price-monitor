@@ -1,10 +1,10 @@
 # price-monitor
 
-Daily dairy product price and offer monitoring for MEVGAL.
+Daily dairy product price and offer monitoring.
 
 ## The question
 
-> Every morning, how does each MEVGAL product's price compare to its
+> Every morning, how does each product's price compare to its
 > competitors at each supermarket, and who is on offer?
 
 Anything that doesn't help answer this question is out of scope.
