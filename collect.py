@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -36,6 +37,8 @@ query productsBySku($skus: [String]) {
 """
 # Γαλαξίας blocks Python's default identity. We use a plain name, not a fake browser.
 GALAXIAS_HEADERS = {"user-agent": "price-monitor/0.1"}
+
+KRITIKOS_URL = "https://kritikos-sm.gr/products/"
 
 
 def post_json(url, payload, headers):
@@ -136,6 +139,40 @@ def fetch_galaxias(codes, today):
     return rows
 
 
+def fetch_kritikos(product, path, today):
+    """path is the product page path, e.g. 'galaktokomika/.../mebgal-kefir-500ml-67880'."""
+    time.sleep(1)  # be polite: about 1 request per second
+    url = KRITIKOS_URL + path + "/"
+    with urllib.request.urlopen(url, timeout=30) as response:
+        html = response.read().decode()
+
+    # The page is built with Next.js, which embeds the page's data as JSON in this script tag.
+    match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    page = json.loads(match.group(1))["props"]["pageProps"]
+    item = page["productSelected"]
+    code = path.rsplit("-", 1)[1]
+    if item["sku"] != code:
+        print(f"WARNING: Κρητικός page {path} shows code {item['sku']}, expected {code} ({product})")
+        return None
+
+    # Prices are in cents. offerType "super" ("Έξυπνη Αγορά") is a label with no price cut.
+    offer = item["offerType"] != "none"
+    raw = {k: v for k, v in item.items() if k not in ("details", "searchTerms")}  # drop ingredients etc.
+    raw["badgeText"] = page.get("badgeText")
+    return {
+        "date": today,
+        "supermarket": "kritikos",
+        "product": product,
+        "price_paid": item["finalPrice"] / 100,
+        "regular_price": item["beginPrice"] / 100,
+        "offer_text": (page.get("badgeText") or item["offerType"]) if offer else None,
+        "offer_start": None,  # Κρητικός does not publish offer dates
+        "offer_end": None,
+        "source_url": url,
+        "raw": raw,
+    }
+
+
 def load_env():
     """Read KEY=VALUE lines from .env into the environment (on GitHub Actions there is no .env)."""
     if not os.path.exists(".env"):
@@ -182,6 +219,12 @@ def main():
     galaxias_codes = {product: codes["galaxias"] for product, codes in config.items() if "galaxias" in codes}
     if galaxias_codes:
         rows += fetch_galaxias(galaxias_codes, today)
+
+    for product, codes in config.items():
+        if "kritikos" in codes:
+            row = fetch_kritikos(product, codes["kritikos"], today)
+            if row:
+                rows.append(row)
 
     print(f"\nPrices for {today}\n")
     print(f"{'SUPERMARKET':<12} {'PRODUCT':<22} {'PAID':>6} {'REGULAR':>8}  OFFER")
