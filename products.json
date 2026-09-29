@@ -1,10 +1,15 @@
 {
   "ΜΕΒΓΑΛ Κεφίρ 500ml": {
     "ab": "7077230",
-    "galaxias": "5201083325256"
+    "galaxias": "5201083325256",
+    "kritikos": "galaktokomika/gala/rofhmata-me-bash-gala/mebgal-kefir-500ml-67880"
   },
   "ΟΛΥΜΠΟΣ Κεφίρ 500ml": {
     "ab": "7076990",
-    "galaxias": "5202178040177"
+    "galaxias": "5202178040177",
+    "kritikos": "galaktokomika/gala/rofhmata-me-bash-gala/olumpos-kefir-500ml-860620"
+  },
+  "ΕΒΡΟΦΑΡΜΑ Κεφίρ 500ml": {
+    "kritikos": "galaktokomika/gala/rofhmata-me-bash-gala/ebrofarma-kefir-500ml-752645"
   }
 }

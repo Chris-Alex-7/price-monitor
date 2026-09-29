@@ -1,7 +1,7 @@
 // Fetch fresh prices on every visit instead of freezing them at build time.
 export const dynamic = "force-dynamic";
 
-const SUPERMARKETS = { ab: "ΑΒ Βασιλόπουλος", galaxias: "Γαλαξίας" };
+const SUPERMARKETS = { ab: "ΑΒ Βασιλόπουλος", galaxias: "Γαλαξίας", kritikos: "Κρητικός" };
 const euro = (value) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value);
 
 async function latestPrices() {
