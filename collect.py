@@ -133,7 +133,7 @@ def fetch_galaxias(codes, today):
             ) or None,
             "offer_start": date.fromisoformat(rules[0]["from"][0]) if rules else None,
             "offer_end": date.fromisoformat(rules[0]["to"][0]) if rules else None,
-            "source_url": "https://galaxias.shop/product/" + raw["url_key"],
+            "source_url": "https://galaxias.shop/product/" + sku,  # the site's pages use the barcode, not url_key
             "raw": raw,
         })
     return rows
