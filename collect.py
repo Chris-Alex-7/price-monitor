@@ -1,4 +1,4 @@
-"""Fetch today's prices for the products in products.json and print a table."""
+"""Fetch today's prices for the products in the Supabase products table and print a table."""
 
 import json
 import os
@@ -185,9 +185,20 @@ def load_env():
                 os.environ.setdefault(key.strip(), value.strip())
 
 
+def load_products():
+    """Read the products to track, with each supermarket's code, from Supabase."""
+    url = os.environ["SUPABASE_URL"] + "/rest/v1/products?select=id,name,ab_code,galaxias_code,kritikos_code&order=id"
+    request = urllib.request.Request(url, headers={"apikey": os.environ["SUPABASE_SECRET_KEY"]})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"Supabase said {e.code}: {e.read().decode()}")
+
+
 def save_to_supabase(rows):
     """Upsert: a row with the same date + supermarket + product is replaced, never duplicated."""
-    url = os.environ["SUPABASE_URL"] + "/rest/v1/prices?on_conflict=date,supermarket,product"
+    url = os.environ["SUPABASE_URL"] + "/rest/v1/prices?on_conflict=date,supermarket,product_id"
     headers = {
         "apikey": os.environ["SUPABASE_SECRET_KEY"],
         "content-type": "application/json",
@@ -206,23 +217,22 @@ def save_to_supabase(rows):
 def main():
     load_env()
     today = datetime.now(ZoneInfo("Europe/Athens")).date()
-    with open("products.json", encoding="utf-8") as f:
-        config = json.load(f)
+    products = load_products()
 
     rows = []
-    for product, codes in config.items():
-        if "ab" in codes:
-            row = fetch_ab(product, codes["ab"], today)
+    for p in products:
+        if p["ab_code"]:
+            row = fetch_ab(p["name"], p["ab_code"], today)
             if row:
                 rows.append(row)
 
-    galaxias_codes = {product: codes["galaxias"] for product, codes in config.items() if "galaxias" in codes}
+    galaxias_codes = {p["name"]: p["galaxias_code"] for p in products if p["galaxias_code"]}
     if galaxias_codes:
         rows += fetch_galaxias(galaxias_codes, today)
 
-    for product, codes in config.items():
-        if "kritikos" in codes:
-            row = fetch_kritikos(product, codes["kritikos"], today)
+    for p in products:
+        if p["kritikos_code"]:
+            row = fetch_kritikos(p["name"], p["kritikos_code"], today)
             if row:
                 rows.append(row)
 
@@ -234,6 +244,9 @@ def main():
             offer += f" ({r['offer_start']} to {r['offer_end']})"
         print(f"{r['supermarket']:<12} {r['product']:<22} {r['price_paid']:>6.2f} {r['regular_price']:>8.2f}  {offer}")
 
+    ids = {p["name"]: p["id"] for p in products}
+    for r in rows:
+        r["product_id"] = ids[r.pop("product")]
     save_to_supabase(rows)
 
 

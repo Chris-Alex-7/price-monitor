@@ -5,7 +5,8 @@ const SUPERMARKETS = { ab: "ΑΒ Βασιλόπουλος", galaxias: "Γαλα�
 const euro = (value) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value);
 
 async function latestPrices() {
-  const columns = "date,supermarket,product,price_paid,regular_price,offer_text,offer_end,source_url";
+  // "...products(product:name)" adds the product's name from the products table as "product".
+  const columns = "date,supermarket,price_paid,regular_price,offer_text,offer_end,source_url,...products(product:name)";
   const url = `${process.env.SUPABASE_URL}/rest/v1/prices?select=${columns}&order=date.desc&limit=200`;
   const response = await fetch(url, { headers: { apikey: process.env.SUPABASE_PUBLISHABLE_KEY } });
   if (!response.ok) throw new Error(`Supabase said ${response.status}: ${await response.text()}`);
