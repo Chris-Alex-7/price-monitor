@@ -29,7 +29,7 @@ function offerDetails(row, reduced) {
   let text = row.offer_text;
   if (row.offer_start && row.offer_end) text += ` (${row.offer_start} to ${row.offer_end})`;
   else if (row.offer_end) text += ` (until ${row.offer_end})`;
-  return text + (reduced ? `, usually ${euro(row.regular_price)}` : ", a shop label: the price is not reduced");
+  return reduced ? `${text}, usually ${euro(row.regular_price)}` : text;
 }
 
 // Shows its text on hover, or on tap/keyboard focus thanks to tabIndex.
