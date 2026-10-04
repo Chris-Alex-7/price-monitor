@@ -2,7 +2,9 @@ name: Collect prices
 
 on:
   schedule:
-    - cron: "0 5 * * *" # every day at 05:00 UTC (08:00 Greek summer time)
+    # Every day at 03:17 UTC (06:17 Greek summer time). GitHub often starts scheduled jobs hours late,
+    # especially on the hour, so this is early and off the hour.
+    - cron: "17 3 * * *"
   workflow_dispatch: # adds the manual "Run workflow" button
 
 jobs:

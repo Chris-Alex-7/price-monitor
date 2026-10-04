@@ -11,12 +11,7 @@ const pageUrl = (date, categories) => `/?date=${date}` + (categories.length ? `&
 
 function Arrow({ to, label, categories, children }) {
   if (!to) return <span className="off">{children}</span>;
-  return (
-    <span className="tip">
-      <Link href={pageUrl(to, categories)} aria-label={`${label}: ${dmy(to)}`}>{children}</Link>
-      <span className="tip-text below">{`${label}: ${dmy(to)}`}</span>
-    </span>
-  );
+  return <Link href={pageUrl(to, categories)} aria-label={`${label}: ${dmy(to)}`}>{children}</Link>;
 }
 
 // Arrows jump to the nearest day that has prices; the calendar can pick any day with data.

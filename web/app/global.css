@@ -173,12 +173,6 @@ h1 {
   color: var(--faint);
 }
 
-.datebar .tip {
-  margin-left: 0;
-  color: inherit;
-  cursor: default;
-}
-
 /* The real date input stays invisible underneath the button so its calendar opens in the right place. */
 .datefield {
   position: relative;
@@ -348,11 +342,6 @@ tbody:last-child tr:last-child td {
   font-size: 12px;
   font-weight: 400;
   white-space: nowrap;
-}
-
-.tip-text.below {
-  top: 140%;
-  bottom: auto;
 }
 
 .tip:hover .tip-text,
