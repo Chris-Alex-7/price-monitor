@@ -75,7 +75,7 @@ h1 {
 }
 
 .datebar a:hover,
-.datebar input:hover {
+.datefield button:hover {
   background: var(--hover);
 }
 
@@ -83,15 +83,34 @@ h1 {
   color: var(--faint);
 }
 
-.datebar input {
-  padding: 6px 8px;
+.datebar .tip {
+  margin-left: 0;
+  color: inherit;
+  cursor: default;
+}
+
+/* The real date input stays invisible underneath the button so its calendar opens in the right place. */
+.datefield {
+  position: relative;
+}
+
+.datefield button {
+  padding: 6px 10px;
   border: none;
   border-radius: 7px;
   background: transparent;
   color: var(--text);
   font: inherit;
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
+}
+
+.datefield input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Price table */
@@ -188,8 +207,11 @@ tr:last-child td {
 
 .legend {
   margin: 12px 4px 0;
+  padding: 0;
+  list-style: none;
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.7;
 }
 
 /* ⓘ tooltip: shows on hover, or on tap/keyboard focus thanks to tabIndex */
@@ -216,7 +238,12 @@ tr:last-child td {
   white-space: nowrap;
 }
 
+.tip-text.below {
+  top: 140%;
+  bottom: auto;
+}
+
 .tip:hover .tip-text,
-.tip:focus .tip-text {
+.tip:focus-within .tip-text {
   display: block;
 }

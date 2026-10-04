@@ -2,6 +2,7 @@ import DatePicker from "./date-picker";
 
 const SUPERMARKETS = { ab: "ΑΒ", galaxias: "Γαλαξίας", kritikos: "Κρητικός" };
 const euro = (value) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value);
+const dmy = (date) => date.split("-").reverse().join("/");
 const longDate = (date) =>
   new Intl.DateTimeFormat("en-GB", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
 
@@ -39,19 +40,23 @@ async function loadData(requested) {
 }
 
 function offerDetails(row) {
-  if (row.offer_start && row.offer_end) return `${row.offer_text} (${row.offer_start} to ${row.offer_end})`;
-  if (row.offer_end) return `${row.offer_text} (until ${row.offer_end})`;
-  return row.offer_text;
+  const text = row.offer_text ?? "Reduced price";
+  if (row.offer_start && row.offer_end) return `${text} (${dmy(row.offer_start)} to ${dmy(row.offer_end)})`;
+  if (row.offer_end) return `${text} (until ${dmy(row.offer_end)})`;
+  return text;
 }
 
-function Info({ text }) {
+// Shows its text on hover, or on tap/keyboard focus thanks to tabIndex.
+function Tip({ icon, text }) {
   return (
     <span className="tip" tabIndex={0}>
-      ⓘ<span className="tip-text">{text}</span>
+      {icon}
+      <span className="tip-text">{text}</span>
     </span>
   );
 }
 
+// 🏷️ for a real price cut, ⓘ for a shop label that does not change the price.
 function PriceCell({ row, highlight }) {
   if (!row) return <td className="price none">—</td>;
   const reduced = row.price_paid < row.regular_price;
@@ -59,8 +64,7 @@ function PriceCell({ row, highlight }) {
     <td className="price">
       <a href={row.source_url} className={highlight ? "cheapest" : undefined}>{euro(row.price_paid)}</a>
       {reduced && <span className="was">{euro(row.regular_price)}</span>}
-      {reduced && " 🏷️"}
-      {row.offer_text && <Info text={offerDetails(row)} />}
+      {reduced ? <Tip icon="🏷️" text={offerDetails(row)} /> : row.offer_text && <Tip icon="ⓘ" text={offerDetails(row)} />}
     </td>
   );
 }
@@ -124,7 +128,11 @@ export default async function Page({ searchParams }) {
         )}
       </div>
 
-      <p className="legend">Green: cheapest in its group at that supermarket · 🏷️ reduced price · ⓘ offer details</p>
+      <ul className="legend">
+        <li>Green: cheapest in its group at that supermarket</li>
+        <li>🏷️ Reduced price (hover for the offer)</li>
+        <li>ⓘ Shop label without a price cut (hover for details)</li>
+      </ul>
     </main>
   );
 }
