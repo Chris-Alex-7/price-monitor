@@ -31,12 +31,12 @@ export function DatePicker({ date, earliest, latest, previous, next, today, cate
   return (
     <>
       {date === today ? (
-        <span className="button off">Today</span>
+        <span className="button off">Σήμερα</span>
       ) : (
-        <Link className="button" href={pageUrl(today, categories)}>Today</Link>
+        <Link className="button" href={pageUrl(today, categories)}>Σήμερα</Link>
       )}
       <div className="datebar">
-        <Arrow to={previous} label="Previous day" categories={categories}>‹</Arrow>
+        <Arrow to={previous} label="Προηγούμενη ημέρα" categories={categories}>‹</Arrow>
         {/* The browser shows date fields in its own format, so we show dd/mm/yyyy and open its calendar. */}
         <div className="datefield">
           <button type="button" onClick={() => calendar.current.showPicker()}>{dmy(date)}</button>
@@ -52,7 +52,7 @@ export function DatePicker({ date, earliest, latest, previous, next, today, cate
             aria-hidden="true"
           />
         </div>
-        <Arrow to={next} label="Next day" categories={categories}>›</Arrow>
+        <Arrow to={next} label="Επόμενη ημέρα" categories={categories}>›</Arrow>
       </div>
     </>
   );
@@ -90,9 +90,9 @@ export function CategoryFilter({ options, selected, date }) {
   const toggle = (id) => choose(ticked.includes(id) ? ticked.filter((t) => t !== id) : [...ticked, id]);
 
   const label =
-    ticked.length === 0 ? "All categories"
+    ticked.length === 0 ? "Όλες οι κατηγορίες"
     : ticked.length === 1 ? options.find((o) => o.id === ticked[0]).name
-    : `${ticked.length} categories`;
+    : `${ticked.length} κατηγορίες`;
 
   return (
     <div className="filter" ref={box}>
@@ -102,7 +102,7 @@ export function CategoryFilter({ options, selected, date }) {
       {open && (
         <div className="menu">
           <label>
-            <input type="checkbox" checked={ticked.length === 0} onChange={() => choose([])} /> All
+            <input type="checkbox" checked={ticked.length === 0} onChange={() => choose([])} /> Όλες
           </label>
           <hr />
           {options.map((o) => (

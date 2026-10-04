@@ -8,6 +8,10 @@
   --hover: #f3f4f6;
   --green-bg: #dcfce7;
   --green-text: #166534;
+  --category-bg: #dbeafe;
+  --category-text: #1e3a8a;
+  --mevgal-bg: #eff6ff;
+  --head-height: 40px;
 }
 
 * {
@@ -214,8 +218,13 @@ table {
   font-size: 14px;
 }
 
+/* The column titles and the current category stay pinned to the top while scrolling */
 th {
-  padding: 12px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: var(--head-height);
+  padding: 0 16px;
   background: #fafafa;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
@@ -245,11 +254,19 @@ tbody:last-child tr:last-child td {
 
 /* Category separator row at the top of each section */
 .category td {
+  position: sticky;
+  top: var(--head-height);
+  z-index: 1;
   padding: 8px 16px;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--category-bg);
+  color: var(--category-text);
   font-size: 13px;
   font-weight: 700;
+}
+
+/* Each MEVGAL product starts a group, with its competitors below */
+.mevgal td {
+  background: var(--mevgal-bg);
 }
 
 .mevgal td:first-child {
