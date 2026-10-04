@@ -187,7 +187,7 @@ def load_env():
 
 def load_products():
     """Read the products to track, with each supermarket's code, from Supabase."""
-    url = os.environ["SUPABASE_URL"] + "/rest/v1/products?select=name,ab_code,galaxias_code,kritikos_code&order=id"
+    url = os.environ["SUPABASE_URL"] + "/rest/v1/products?select=id,name,ab_code,galaxias_code,kritikos_code&order=id"
     request = urllib.request.Request(url, headers={"apikey": os.environ["SUPABASE_SECRET_KEY"]})
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
@@ -198,7 +198,7 @@ def load_products():
 
 def save_to_supabase(rows):
     """Upsert: a row with the same date + supermarket + product is replaced, never duplicated."""
-    url = os.environ["SUPABASE_URL"] + "/rest/v1/prices?on_conflict=date,supermarket,product"
+    url = os.environ["SUPABASE_URL"] + "/rest/v1/prices?on_conflict=date,supermarket,product_id"
     headers = {
         "apikey": os.environ["SUPABASE_SECRET_KEY"],
         "content-type": "application/json",
@@ -244,6 +244,9 @@ def main():
             offer += f" ({r['offer_start']} to {r['offer_end']})"
         print(f"{r['supermarket']:<12} {r['product']:<22} {r['price_paid']:>6.2f} {r['regular_price']:>8.2f}  {offer}")
 
+    ids = {p["name"]: p["id"] for p in products}
+    for r in rows:
+        r["product_id"] = ids[r.pop("product")]
     save_to_supabase(rows)
 
 
