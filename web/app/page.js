@@ -1,10 +1,12 @@
-import DatePicker from "./date-picker";
+import { CategoryFilter, DatePicker } from "./controls";
 
 const SUPERMARKETS = { ab: "ΑΒ", galaxias: "Γαλαξίας", kritikos: "Κρητικός" };
 const euro = (value) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value);
 const dmy = (date) => date.split("-").reverse().join("/");
 const longDate = (date) =>
   new Intl.DateTimeFormat("en-GB", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
+// "en-CA" writes dates as YYYY-MM-DD, the same format as the database.
+const greekToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Athens" }).format(new Date());
 
 async function get(path) {
   const url = `${process.env.SUPABASE_URL}/rest/v1/${path}`;
@@ -14,8 +16,9 @@ async function get(path) {
 }
 
 async function loadData(requested) {
-  const [products, competitors, first, last] = await Promise.all([
-    get("products?select=id,name,brand&order=id"),
+  const [categories, products, competitors, first, last] = await Promise.all([
+    get("categories?select=id,name&order=id"),
+    get("products?select=id,name,brand,category_id&order=id"),
     get("competitors?select=product_id,competitor_id&status=eq.approved"),
     get("prices?select=date&order=date.asc&limit=1"),
     get("prices?select=date&order=date.desc&limit=1"),
@@ -32,6 +35,7 @@ async function loadData(requested) {
     get(`prices?select=date&date=gt.${date}&order=date.asc&limit=1`),
   ]);
   return {
+    categories,
     products,
     competitors,
     prices,
@@ -70,9 +74,10 @@ function PriceCell({ row, highlight }) {
 }
 
 export default async function Page({ searchParams }) {
-  const { date: requested } = await searchParams;
-  const { products, competitors, prices, dates } = await loadData(requested);
+  const { date: requested, categories: picked } = await searchParams;
+  const { categories, products, competitors, prices, dates } = await loadData(requested);
   if (!dates) return <main>No prices yet.</main>;
+  const today = greekToday();
 
   const byId = Object.fromEntries(products.map((p) => [p.id, p]));
   const priceOf = (productId, shop) => prices.find((r) => r.product_id === productId && r.supermarket === shop);
@@ -86,6 +91,14 @@ export default async function Page({ searchParams }) {
     return paid.length > 1 ? Math.min(...paid) : null;
   };
 
+  // One section per category that has products, in the categories' id order.
+  const sections = categories
+    .map((c) => ({ ...c, groups: groups.filter((group) => group[0].category_id === c.id) }))
+    .filter((s) => s.groups.length > 0);
+  // ?categories=2,6 -> [2, 6]. Unknown ids are dropped; none left means "All".
+  const selected = String(picked ?? "").split(",").map(Number).filter((id) => sections.some((s) => s.id === id));
+  const shown = selected.length ? sections.filter((s) => selected.includes(s.id)) : sections;
+
   return (
     <main>
       <header>
@@ -93,12 +106,19 @@ export default async function Page({ searchParams }) {
           <h1>MEVGAL prices</h1>
           <p className="subtitle">Supermarket e-shop prices on {longDate(dates.date)}</p>
         </div>
-        <DatePicker {...dates} />
+        <div className="controls">
+          <CategoryFilter options={sections.map(({ id, name }) => ({ id, name }))} selected={selected} date={dates.date} />
+          <DatePicker {...dates} today={today} categories={selected} />
+        </div>
       </header>
 
       <div className="card">
         {prices.length === 0 ? (
-          <p className="empty">No prices saved for this day.</p>
+          <p className="empty">
+            {dates.date === today
+              ? "Today's prices aren't in yet. They are collected early every morning."
+              : "No prices saved for this day."}
+          </p>
         ) : (
           <table>
             <thead>
@@ -109,21 +129,26 @@ export default async function Page({ searchParams }) {
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {groups.map((group) =>
-                group.map((p, i) => (
-                  <tr key={`${group[0].id}-${p.id}`} className={i === 0 ? "mevgal" : "competitor"}>
-                    <td>{p.name}</td>
-                    {Object.keys(SUPERMARKETS).map((shop) => {
-                      const row = priceOf(p.id, shop);
-                      return (
-                        <PriceCell key={shop} row={row} highlight={row && row.price_paid === cheapest(group, shop)} />
-                      );
-                    })}
-                  </tr>
-                ))
-              )}
-            </tbody>
+            {shown.map((section) => (
+              <tbody key={section.id}>
+                <tr className="category">
+                  <td colSpan={1 + Object.keys(SUPERMARKETS).length}>{section.name}</td>
+                </tr>
+                {section.groups.map((group) =>
+                  group.map((p, i) => (
+                    <tr key={`${group[0].id}-${p.id}`} className={i === 0 ? "mevgal" : "competitor"}>
+                      <td>{p.name}</td>
+                      {Object.keys(SUPERMARKETS).map((shop) => {
+                        const row = priceOf(p.id, shop);
+                        return (
+                          <PriceCell key={shop} row={row} highlight={row && row.price_paid === cheapest(group, shop)} />
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            ))}
           </table>
         )}
       </div>
