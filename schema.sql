@@ -47,6 +47,7 @@ alter table competitors enable row level security;
 -- The collector (secret key) reads products and writes prices; the web page (publishable key, role "anon") can only read.
 grant select on products to service_role;
 grant select, insert, update on prices to service_role;
-grant select on products, prices to anon;
+grant select on products, prices, competitors to anon;
 create policy "Anyone can read products" on products for select to anon using (true);
 create policy "Anyone can read prices" on prices for select to anon using (true);
+create policy "Anyone can read competitors" on competitors for select to anon using (true);
