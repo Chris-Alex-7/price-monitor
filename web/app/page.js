@@ -25,11 +25,28 @@ async function loadData() {
   return { products, competitors, date, prices };
 }
 
-function offerDetails(row) {
-  if (row.offer_start && row.offer_end) return `${row.offer_text} (${row.offer_start} to ${row.offer_end})`;
-  if (row.offer_end) return `${row.offer_text} (until ${row.offer_end})`;
-  return row.offer_text;
+function offerDetails(row, reduced) {
+  let text = row.offer_text;
+  if (row.offer_start && row.offer_end) text += ` (${row.offer_start} to ${row.offer_end})`;
+  else if (row.offer_end) text += ` (until ${row.offer_end})`;
+  return text + (reduced ? `, usually ${euro(row.regular_price)}` : ", a shop label: the price is not reduced");
 }
+
+// Shows its text on hover, or on tap/keyboard focus thanks to tabIndex.
+function Info({ text }) {
+  return (
+    <span className="tip" tabIndex={0}>
+      ⓘ<span className="tip-text">{text}</span>
+    </span>
+  );
+}
+
+const tooltipCss = `
+  .tip { position: relative; cursor: help; margin-left: 4px; }
+  .tip-text { display: none; position: absolute; bottom: 130%; right: 0; z-index: 1; background: #333; color: #fff;
+    padding: 4px 8px; border-radius: 4px; font-size: 0.85em; white-space: nowrap; }
+  .tip:hover .tip-text, .tip:focus .tip-text { display: block; }
+`;
 
 function PriceCell({ row, highlight }) {
   if (!row) return <td style={{ ...cell, color: "#aaa" }}>—</td>;
@@ -39,7 +56,7 @@ function PriceCell({ row, highlight }) {
       <a href={row.source_url} style={{ color: "inherit" }}>{euro(row.price_paid)}</a>
       {reduced && <s style={{ color: "#888", fontSize: "0.8em", marginLeft: 4 }}>{euro(row.regular_price)}</s>}
       {reduced && " 🏷️"}
-      {row.offer_text && <span title={offerDetails(row)} style={{ cursor: "help", marginLeft: 4 }}>ⓘ</span>}
+      {row.offer_text && <Info text={offerDetails(row, reduced)} />}
     </td>
   );
 }
@@ -62,6 +79,7 @@ export default async function Page() {
 
   return (
     <main>
+      <style>{tooltipCss}</style>
       <h1>MEVGAL prices</h1>
       <p>
         Prices for {date}. Green is the cheapest in its group at that supermarket. 🏷️ means a reduced price; hover ⓘ
