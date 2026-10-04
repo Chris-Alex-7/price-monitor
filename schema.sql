@@ -27,9 +27,21 @@ create table prices (
 -- Postgres does not index foreign keys by itself.
 create index prices_product_id_idx on prices (product_id);
 
+-- Competitor decisions. Nothing is granted delete, so decisions stay forever.
+create table competitors (
+  product_id    bigint not null references products (id),
+  competitor_id bigint not null references products (id),
+  status        text   not null check (status in ('approved', 'rejected')),
+  decided_at    timestamptz not null default now(),
+  primary key (product_id, competitor_id),
+  check (product_id <> competitor_id)
+);
+create index competitors_competitor_id_idx on competitors (competitor_id);
+
 -- Row level security: only what the policies below allow. The secret key bypasses this.
 alter table products enable row level security;
 alter table prices enable row level security;
+alter table competitors enable row level security;
 
 -- New tables are not exposed to the Data API automatically, so grant access explicitly.
 -- The collector (secret key) reads products and writes prices; the web page (publishable key, role "anon") can only read.
