@@ -1,14 +1,23 @@
 -- Run once in the Supabase SQL Editor.
 
+-- Product categories. The page shows them in id order, so add them in the order they should appear.
+create table categories (
+  id   bigint generated always as identity primary key,
+  name text not null unique
+);
+
 -- Products we follow, with each supermarket's code typed in by hand (empty = not tracked there).
 create table products (
   id            bigint generated always as identity primary key,
   name          text not null unique,
   brand         text not null,
+  category_id   bigint not null references categories (id),
   ab_code       text unique,
   galaxias_code text unique,
   kritikos_code text unique
 );
+-- Postgres does not index foreign keys by itself.
+create index products_category_id_idx on products (category_id);
 
 create table prices (
   date          date    not null,
@@ -24,7 +33,6 @@ create table prices (
   -- One row per product per supermarket per day; re-running a day replaces its rows.
   primary key (date, supermarket, product_id)
 );
--- Postgres does not index foreign keys by itself.
 create index prices_product_id_idx on prices (product_id);
 
 -- Competitor decisions. Nothing is granted delete, so decisions stay forever.
@@ -39,6 +47,7 @@ create table competitors (
 create index competitors_competitor_id_idx on competitors (competitor_id);
 
 -- Row level security: only what the policies below allow. The secret key bypasses this.
+alter table categories enable row level security;
 alter table products enable row level security;
 alter table prices enable row level security;
 alter table competitors enable row level security;
@@ -47,7 +56,8 @@ alter table competitors enable row level security;
 -- The collector (secret key) reads products and writes prices; the web page (publishable key, role "anon") can only read.
 grant select on products to service_role;
 grant select, insert, update on prices to service_role;
-grant select on products, prices, competitors to anon;
+grant select on categories, products, prices, competitors to anon;
+create policy "Anyone can read categories" on categories for select to anon using (true);
 create policy "Anyone can read products" on products for select to anon using (true);
 create policy "Anyone can read prices" on prices for select to anon using (true);
 create policy "Anyone can read competitors" on competitors for select to anon using (true);
