@@ -1,5 +1,4 @@
-// Fetch fresh prices on every visit instead of freezing them at build time.
-export const dynamic = "force-dynamic";
+import Link from "next/link";
 
 const SUPERMARKETS = { ab: "ΑΒ", galaxias: "Γαλαξίας", kritikos: "Κρητικός" };
 const euro = (value) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value);
@@ -12,17 +11,47 @@ async function get(path) {
   return response.json();
 }
 
-async function loadData() {
+async function loadData(requested) {
   const [products, competitors, latest] = await Promise.all([
     get("products?select=id,name,brand&order=id"),
     get("competitors?select=product_id,competitor_id&status=eq.approved"),
     get("prices?select=date&order=date.desc&limit=1"),
   ]);
-  // Only the most recent day, so the page still shows something before today's run.
-  const date = latest[0]?.date;
+  // The date from the URL (?date=2026-10-04), otherwise the most recent day with prices.
+  // Checking the format also keeps anything else out of the Supabase URL.
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(requested ?? "") ? requested : latest[0]?.date;
+  if (!date) return { date };
+
   const columns = "product_id,supermarket,price_paid,regular_price,offer_text,offer_start,offer_end,source_url";
-  const prices = date ? await get(`prices?select=${columns}&date=eq.${date}`) : [];
-  return { products, competitors, date, prices };
+  const [prices, before, after] = await Promise.all([
+    get(`prices?select=${columns}&date=eq.${date}`),
+    get(`prices?select=date&date=lt.${date}&order=date.desc&limit=1`),
+    get(`prices?select=date&date=gt.${date}&order=date.asc&limit=1`),
+  ]);
+  return {
+    products,
+    competitors,
+    date,
+    prices,
+    latest: latest[0].date,
+    previous: before[0]?.date,
+    next: after[0]?.date,
+  };
+}
+
+// Arrows jump to the nearest day that has prices; the calendar can pick any day.
+function DatePicker({ date, latest, previous, next }) {
+  const off = { color: "#ccc" };
+  return (
+    <nav style={{ display: "flex", gap: 12, alignItems: "center", margin: "12px 0" }}>
+      {previous ? <Link href={`/?date=${previous}`}>← {previous}</Link> : <span style={off}>←</span>}
+      <form style={{ display: "flex", gap: 4 }}>
+        <input key={date} type="date" name="date" defaultValue={date} max={latest} />
+        <button>Show</button>
+      </form>
+      {next ? <Link href={`/?date=${next}`}>{next} →</Link> : <span style={off}>→</span>}
+    </nav>
+  );
 }
 
 function offerDetails(row, reduced) {
@@ -61,8 +90,9 @@ function PriceCell({ row, highlight }) {
   );
 }
 
-export default async function Page() {
-  const { products, competitors, date, prices } = await loadData();
+export default async function Page({ searchParams }) {
+  const { date: requested } = await searchParams;
+  const { products, competitors, date, prices, latest, previous, next } = await loadData(requested);
   if (!date) return <p>No prices yet.</p>;
 
   const byId = Object.fromEntries(products.map((p) => [p.id, p]));
@@ -82,35 +112,39 @@ export default async function Page() {
       <style>{tooltipCss}</style>
       <h1>MEVGAL prices</h1>
       <p>
-        Prices for {date}. Green is the cheapest in its group at that supermarket. 🏷️ means a reduced price; hover ⓘ
-        for offer details.
+        Green is the cheapest in its group at that supermarket. 🏷️ means a reduced price; hover ⓘ for offer details.
       </p>
+      <DatePicker date={date} latest={latest} previous={previous} next={next} />
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={cell}>Product</th>
-            {Object.values(SUPERMARKETS).map((name) => (
-              <th key={name} style={cell}>{name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((group) =>
-            group.map((p, i) => (
-              <tr key={`${group[0].id}-${p.id}`}>
-                <td style={{ ...cell, fontWeight: i === 0 ? "bold" : "normal", paddingLeft: i === 0 ? 8 : 28 }}>
-                  {p.name}
-                </td>
-                {Object.keys(SUPERMARKETS).map((shop) => {
-                  const row = priceOf(p.id, shop);
-                  return <PriceCell key={shop} row={row} highlight={row && row.price_paid === cheapest(group, shop)} />;
-                })}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      {prices.length === 0 ? (
+        <p>No prices saved for {date}.</p>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={cell}>Product</th>
+              {Object.values(SUPERMARKETS).map((name) => (
+                <th key={name} style={cell}>{name}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((group) =>
+              group.map((p, i) => (
+                <tr key={`${group[0].id}-${p.id}`}>
+                  <td style={{ ...cell, fontWeight: i === 0 ? "bold" : "normal", paddingLeft: i === 0 ? 8 : 28 }}>
+                    {p.name}
+                  </td>
+                  {Object.keys(SUPERMARKETS).map((shop) => {
+                    const row = priceOf(p.id, shop);
+                    return <PriceCell key={shop} row={row} highlight={row && row.price_paid === cheapest(group, shop)} />;
+                  })}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      )}
     </main>
   );
 }
