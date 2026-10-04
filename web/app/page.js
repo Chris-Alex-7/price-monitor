@@ -4,7 +4,7 @@ const SUPERMARKETS = { ab: "ΑΒ", galaxias: "Γαλαξίας", kritikos: "Κρ
 const euro = (value) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value);
 const dmy = (date) => date.split("-").reverse().join("/");
 const longDate = (date) =>
-  new Intl.DateTimeFormat("en-GB", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
+  new Intl.DateTimeFormat("el-GR", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
 // "en-CA" writes dates as YYYY-MM-DD, the same format as the database.
 const greekToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Athens" }).format(new Date());
 
@@ -44,9 +44,9 @@ async function loadData(requested) {
 }
 
 function offerDetails(row) {
-  const text = row.offer_text ?? "Reduced price";
-  if (row.offer_start && row.offer_end) return `${text} (${dmy(row.offer_start)} to ${dmy(row.offer_end)})`;
-  if (row.offer_end) return `${text} (until ${dmy(row.offer_end)})`;
+  const text = row.offer_text ?? "Μειωμένη τιμή";
+  if (row.offer_start && row.offer_end) return `${text} (${dmy(row.offer_start)} έως ${dmy(row.offer_end)})`;
+  if (row.offer_end) return `${text} (έως ${dmy(row.offer_end)})`;
   return text;
 }
 
@@ -76,7 +76,7 @@ function PriceCell({ row, highlight }) {
 export default async function Page({ searchParams }) {
   const { date: requested, categories: picked } = await searchParams;
   const { categories, products, competitors, prices, dates } = await loadData(requested);
-  if (!dates) return <main>No prices yet.</main>;
+  if (!dates) return <main>Δεν υπάρχουν ακόμη τιμές.</main>;
   const today = greekToday();
 
   const byId = Object.fromEntries(products.map((p) => [p.id, p]));
@@ -103,8 +103,8 @@ export default async function Page({ searchParams }) {
     <main>
       <header>
         <div>
-          <h1>MEVGAL prices</h1>
-          <p className="subtitle">Supermarket e-shop prices on {longDate(dates.date)}</p>
+          <h1>Τιμές ΜΕΒΓΑΛ</h1>
+          <p className="subtitle">Τιμές e-shop σούπερ μάρκετ, {longDate(dates.date)}</p>
         </div>
         <div className="controls">
           <CategoryFilter options={sections.map(({ id, name }) => ({ id, name }))} selected={selected} date={dates.date} />
@@ -116,14 +116,14 @@ export default async function Page({ searchParams }) {
         {prices.length === 0 ? (
           <p className="empty">
             {dates.date === today
-              ? "Today's prices aren't in yet. They are collected early every morning."
-              : "No prices saved for this day."}
+              ? "Οι σημερινές τιμές δεν έχουν συλλεχθεί ακόμη. Συλλέγονται νωρίς κάθε πρωί."
+              : "Δεν υπάρχουν αποθηκευμένες τιμές για αυτή την ημέρα."}
           </p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Product</th>
+                <th>Προϊόν</th>
                 {Object.values(SUPERMARKETS).map((name) => (
                   <th key={name}>{name}</th>
                 ))}
@@ -154,9 +154,9 @@ export default async function Page({ searchParams }) {
       </div>
 
       <ul className="legend">
-        <li>Green: cheapest in its group at that supermarket</li>
-        <li>🏷️ Reduced price (hover for the offer)</li>
-        <li>ⓘ Shop label without a price cut (hover for details)</li>
+        <li>Πράσινο: η φθηνότερη τιμή της ομάδας σε κάθε σούπερ μάρκετ</li>
+        <li>🏷️ Μειωμένη τιμή (περάστε το ποντίκι από πάνω για την προσφορά)</li>
+        <li>ⓘ Ένδειξη του καταστήματος χωρίς μείωση τιμής (περάστε το ποντίκι από πάνω για λεπτομέρειες)</li>
       </ul>
     </main>
   );

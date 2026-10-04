@@ -1,6 +1,6 @@
 import "./global.css";
 
-export const metadata = { title: "Price monitor" };
+export const metadata = { title: "Τιμές ΜΕΒΓΑΛ" };
 
 export default function RootLayout({ children }) {
   return (
