@@ -1,8 +1,9 @@
-import Link from "next/link";
+import DatePicker from "./date-picker";
 
 const SUPERMARKETS = { ab: "ΑΒ", galaxias: "Γαλαξίας", kritikos: "Κρητικός" };
 const euro = (value) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value);
-const cell = { padding: "6px 8px", borderBottom: "1px solid #eee", textAlign: "left" };
+const longDate = (date) =>
+  new Intl.DateTimeFormat("en-GB", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
 
 async function get(path) {
   const url = `${process.env.SUPABASE_URL}/rest/v1/${path}`;
@@ -12,15 +13,16 @@ async function get(path) {
 }
 
 async function loadData(requested) {
-  const [products, competitors, latest] = await Promise.all([
+  const [products, competitors, first, last] = await Promise.all([
     get("products?select=id,name,brand&order=id"),
     get("competitors?select=product_id,competitor_id&status=eq.approved"),
+    get("prices?select=date&order=date.asc&limit=1"),
     get("prices?select=date&order=date.desc&limit=1"),
   ]);
   // The date from the URL (?date=2026-10-04), otherwise the most recent day with prices.
   // Checking the format also keeps anything else out of the Supabase URL.
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(requested ?? "") ? requested : latest[0]?.date;
-  if (!date) return { date };
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(requested ?? "") ? requested : last[0]?.date;
+  if (!date) return {};
 
   const columns = "product_id,supermarket,price_paid,regular_price,offer_text,offer_start,offer_end,source_url";
   const [prices, before, after] = await Promise.all([
@@ -31,37 +33,17 @@ async function loadData(requested) {
   return {
     products,
     competitors,
-    date,
     prices,
-    latest: latest[0].date,
-    previous: before[0]?.date,
-    next: after[0]?.date,
+    dates: { date, earliest: first[0].date, latest: last[0].date, previous: before[0]?.date, next: after[0]?.date },
   };
 }
 
-// Arrows jump to the nearest day that has prices; the calendar can pick any day.
-function DatePicker({ date, latest, previous, next }) {
-  const off = { color: "#ccc" };
-  return (
-    <nav style={{ display: "flex", gap: 12, alignItems: "center", margin: "12px 0" }}>
-      {previous ? <Link href={`/?date=${previous}`}>← {previous}</Link> : <span style={off}>←</span>}
-      <form style={{ display: "flex", gap: 4 }}>
-        <input key={date} type="date" name="date" defaultValue={date} max={latest} />
-        <button>Show</button>
-      </form>
-      {next ? <Link href={`/?date=${next}`}>{next} →</Link> : <span style={off}>→</span>}
-    </nav>
-  );
+function offerDetails(row) {
+  if (row.offer_start && row.offer_end) return `${row.offer_text} (${row.offer_start} to ${row.offer_end})`;
+  if (row.offer_end) return `${row.offer_text} (until ${row.offer_end})`;
+  return row.offer_text;
 }
 
-function offerDetails(row, reduced) {
-  let text = row.offer_text;
-  if (row.offer_start && row.offer_end) text += ` (${row.offer_start} to ${row.offer_end})`;
-  else if (row.offer_end) text += ` (until ${row.offer_end})`;
-  return reduced ? `${text}, usually ${euro(row.regular_price)}` : text;
-}
-
-// Shows its text on hover, or on tap/keyboard focus thanks to tabIndex.
 function Info({ text }) {
   return (
     <span className="tip" tabIndex={0}>
@@ -70,30 +52,23 @@ function Info({ text }) {
   );
 }
 
-const tooltipCss = `
-  .tip { position: relative; cursor: help; margin-left: 4px; }
-  .tip-text { display: none; position: absolute; bottom: 130%; right: 0; z-index: 1; background: #333; color: #fff;
-    padding: 4px 8px; border-radius: 4px; font-size: 0.85em; white-space: nowrap; }
-  .tip:hover .tip-text, .tip:focus .tip-text { display: block; }
-`;
-
 function PriceCell({ row, highlight }) {
-  if (!row) return <td style={{ ...cell, color: "#aaa" }}>—</td>;
+  if (!row) return <td className="price none">—</td>;
   const reduced = row.price_paid < row.regular_price;
   return (
-    <td style={{ ...cell, whiteSpace: "nowrap", background: highlight ? "#d4f7d4" : "transparent" }}>
-      <a href={row.source_url} style={{ color: "inherit" }}>{euro(row.price_paid)}</a>
-      {reduced && <s style={{ color: "#888", fontSize: "0.8em", marginLeft: 4 }}>{euro(row.regular_price)}</s>}
+    <td className="price">
+      <a href={row.source_url} className={highlight ? "cheapest" : undefined}>{euro(row.price_paid)}</a>
+      {reduced && <span className="was">{euro(row.regular_price)}</span>}
       {reduced && " 🏷️"}
-      {row.offer_text && <Info text={offerDetails(row, reduced)} />}
+      {row.offer_text && <Info text={offerDetails(row)} />}
     </td>
   );
 }
 
 export default async function Page({ searchParams }) {
   const { date: requested } = await searchParams;
-  const { products, competitors, date, prices, latest, previous, next } = await loadData(requested);
-  if (!date) return <p>No prices yet.</p>;
+  const { products, competitors, prices, dates } = await loadData(requested);
+  if (!dates) return <main>No prices yet.</main>;
 
   const byId = Object.fromEntries(products.map((p) => [p.id, p]));
   const priceOf = (productId, shop) => prices.find((r) => r.product_id === productId && r.supermarket === shop);
@@ -109,42 +84,47 @@ export default async function Page({ searchParams }) {
 
   return (
     <main>
-      <style>{tooltipCss}</style>
-      <h1>MEVGAL prices</h1>
-      <p>
-        Green is the cheapest in its group at that supermarket. 🏷️ means a reduced price; hover ⓘ for offer details.
-      </p>
-      <DatePicker date={date} latest={latest} previous={previous} next={next} />
+      <header>
+        <div>
+          <h1>MEVGAL prices</h1>
+          <p className="subtitle">Supermarket e-shop prices on {longDate(dates.date)}</p>
+        </div>
+        <DatePicker {...dates} />
+      </header>
 
-      {prices.length === 0 ? (
-        <p>No prices saved for {date}.</p>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={cell}>Product</th>
-              {Object.values(SUPERMARKETS).map((name) => (
-                <th key={name} style={cell}>{name}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((group) =>
-              group.map((p, i) => (
-                <tr key={`${group[0].id}-${p.id}`}>
-                  <td style={{ ...cell, fontWeight: i === 0 ? "bold" : "normal", paddingLeft: i === 0 ? 8 : 28 }}>
-                    {p.name}
-                  </td>
-                  {Object.keys(SUPERMARKETS).map((shop) => {
-                    const row = priceOf(p.id, shop);
-                    return <PriceCell key={shop} row={row} highlight={row && row.price_paid === cheapest(group, shop)} />;
-                  })}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      )}
+      <div className="card">
+        {prices.length === 0 ? (
+          <p className="empty">No prices saved for this day.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                {Object.values(SUPERMARKETS).map((name) => (
+                  <th key={name}>{name}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) =>
+                group.map((p, i) => (
+                  <tr key={`${group[0].id}-${p.id}`} className={i === 0 ? "mevgal" : "competitor"}>
+                    <td>{p.name}</td>
+                    {Object.keys(SUPERMARKETS).map((shop) => {
+                      const row = priceOf(p.id, shop);
+                      return (
+                        <PriceCell key={shop} row={row} highlight={row && row.price_paid === cheapest(group, shop)} />
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <p className="legend">Green: cheapest in its group at that supermarket · 🏷️ reduced price · ⓘ offer details</p>
     </main>
   );
 }
